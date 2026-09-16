@@ -11,6 +11,7 @@ interface Warga {
   no_telepon?: string;
   telepon?: string;
   no_hp?: string;
+  status_warga?: string;
   foto_url?: string;
 }
 
@@ -20,12 +21,16 @@ export default function Home() {
   const [viewMode, setViewMode] = useState<'card' | 'table'>('card');
   const [loading, setLoading] = useState(true);
 
-  // State Modal & Form Input
+  // State Modal Form (Tambah & Edit)
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  
   const [namaInput, setNamaInput] = useState('');
   const [alamatInput, setAlamatInput] = useState('');
   const [teleponInput, setTeleponInput] = useState('');
+  const [statusInput, setStatusInput] = useState('Tetap');
   const [fotoFile, setFotoFile] = useState<File | null>(null);
+  const [existingFotoUrl, setExistingFotoUrl] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
   // Ambil Data Warga dari Supabase
@@ -45,11 +50,12 @@ export default function Home() {
     fetchWarga();
   }, []);
 
-  // Helper Nama & Nomor Telepon
+  // Helper Data
   const getNama = (w: Warga) => w.nama_lengkap || w.nama || 'NAMA KOSONG';
   const getTelepon = (w: Warga) => w.no_telepon || w.telepon || w.no_hp || '-';
+  const getStatus = (w: Warga) => w.status_warga || 'Tetap';
 
-  // FUNGSI PENGURUTAN ALAMAT / BLOK (Natural Sort: G1/1 -> G1/20 -> G2/1, dst)
+  // FUNGSI PENGURUTAN ALAMAT / BLOK (G1/1 -> G1/20 -> G2/1, dst)
   const sortAlamatNatural = (a: Warga, b: Warga) => {
     const alamatA = (a.alamat || '').trim().toUpperCase();
     const alamatB = (b.alamat || '').trim().toUpperCase();
@@ -60,30 +66,70 @@ export default function Home() {
     });
   };
 
-  // Filter Pencarian + Diurutkan berdasarkan Blok / Alamat Terkecil -> Terbesar
+  // Filter Search & Sorting
   const filteredWarga = wargaList
     .filter((w) => {
       const nama = getNama(w).toLowerCase();
       const alamat = (w.alamat || '').toLowerCase();
+      const status = getStatus(w).toLowerCase();
       const query = search.toLowerCase();
-      return nama.includes(query) || alamat.includes(query);
+      return nama.includes(query) || alamat.includes(query) || status.includes(query);
     })
     .sort(sortAlamatNatural);
 
-  // Cetak Dokumen / PDF
+  // Print PDF
   const handlePrint = () => {
     window.print();
   };
 
-  // Simpan Warga Baru
-  const handleTambahWarga = async (e: React.FormEvent) => {
+  // Buka Modal Tambah Warga Baru
+  const handleOpenAddModal = () => {
+    setEditingId(null);
+    setNamaInput('');
+    setAlamatInput('');
+    setTeleponInput('');
+    setStatusInput('Tetap');
+    setFotoFile(null);
+    setExistingFotoUrl('');
+    setIsModalOpen(true);
+  };
+
+  // Buka Modal Edit Warga
+  const handleOpenEditModal = (w: Warga) => {
+    setEditingId(w.id);
+    setNamaInput(getNama(w));
+    setAlamatInput(w.alamat || '');
+    setTeleponInput(getTelepon(w) !== '-' ? getTelepon(w) : '');
+    setStatusInput(getStatus(w));
+    setExistingFotoUrl(w.foto_url || '');
+    setFotoFile(null);
+    setIsModalOpen(true);
+  };
+
+  // Hapus Data Warga
+  const handleHapusWarga = async (id: string, nama: string) => {
+    if (!confirm(`Apakah Anda yakin ingin menghapus data warga: ${nama}?`)) return;
+
+    const { error } = await supabase.from('warga').delete().eq('id', id);
+
+    if (error) {
+      alert('Gagal menghapus data: ' + error.message);
+    } else {
+      alert('Data warga berhasil dihapus.');
+      fetchWarga();
+    }
+  };
+
+  // Simpan Data (Tambah / Edit)
+  const handleSaveWarga = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!namaInput) return alert('Nama lengkap wajib diisi!');
 
     setSubmitting(true);
-    let publicFotoUrl = '';
+    let publicFotoUrl = existingFotoUrl;
 
     try {
+      // 1. Upload foto baru jika ada file yang dipilih
       if (fotoFile) {
         const fileExt = fotoFile.name.split('.').pop();
         const fileName = `${Date.now()}.${fileExt}`;
@@ -100,26 +146,30 @@ export default function Home() {
       const payload: Record<string, any> = {
         nama_lengkap: namaInput,
         alamat: alamatInput,
+        no_telepon: teleponInput,
+        status_warga: statusInput,
         foto_url: publicFotoUrl || null,
       };
 
-      if (teleponInput) {
-        payload.no_telepon = teleponInput;
-      }
+      if (editingId) {
+        // Mode UPDATE (EDIT)
+        const { error } = await supabase
+          .from('warga')
+          .update(payload)
+          .eq('id', editingId);
 
-      const { error } = await supabase.from('warga').insert([payload]);
-
-      if (error) {
-        alert('Gagal menambah warga: ' + error.message);
+        if (error) alert('Gagal mengupdate data: ' + error.message);
+        else alert('Data warga berhasil diperbarui!');
       } else {
-        alert('Berhasil menambah warga baru!');
-        setNamaInput('');
-        setAlamatInput('');
-        setTeleponInput('');
-        setFotoFile(null);
-        setIsModalOpen(false);
-        fetchWarga();
+        // Mode INSERT (TAMBAH BARU)
+        const { error } = await supabase.from('warga').insert([payload]);
+
+        if (error) alert('Gagal menambah warga: ' + error.message);
+        else alert('Berhasil menambah warga baru!');
       }
+
+      setIsModalOpen(false);
+      fetchWarga();
     } catch (err: any) {
       alert('Terjadi kesalahan: ' + err.message);
     } finally {
@@ -166,7 +216,7 @@ export default function Home() {
             <p className="text-gray-500 text-sm">Sistem Informasi Pendataan Warga Terpadu</p>
           </div>
           <button
-            onClick={() => setIsModalOpen(true)}
+            onClick={handleOpenAddModal}
             className="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 rounded-xl font-medium shadow-sm transition"
           >
             + Tambah Warga Baru
@@ -178,7 +228,7 @@ export default function Home() {
           <div className="relative w-full md:w-96">
             <input
               type="text"
-              placeholder="🔍 Cari nama atau alamat rumah warga..."
+              placeholder="🔍 Cari nama, alamat, atau status (Tetap/Ngontrak)..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               className="w-full pl-4 pr-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm text-gray-800"
@@ -230,42 +280,77 @@ export default function Home() {
         {viewMode === 'card' && (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 no-print">
             {filteredWarga.map((w) => (
-              <div key={w.id} className="bg-white rounded-2xl overflow-hidden shadow-sm border border-gray-100 flex flex-col">
+              <div key={w.id} className="bg-white rounded-2xl overflow-hidden shadow-sm border border-gray-100 flex flex-col relative group">
                 <div className="h-48 bg-gray-100 relative">
                   {w.foto_url ? (
                     <img src={w.foto_url} alt={getNama(w)} className="w-full h-full object-cover" />
                   ) : (
                     <div className="w-full h-full flex items-center justify-center text-gray-400">Tidak ada foto</div>
                   )}
+
+                  {/* Badge Status Warga */}
+                  <div className="absolute top-3 left-3">
+                    <span
+                      className={`text-xs font-bold px-2.5 py-1 rounded-full shadow-sm ${
+                        getStatus(w) === 'Ngontrak'
+                          ? 'bg-amber-500 text-white'
+                          : 'bg-emerald-600 text-white'
+                      }`}
+                    >
+                      {getStatus(w)}
+                    </span>
+                  </div>
+
+                  {/* Badge Blok Alamat */}
+                  <div className="absolute top-3 right-3">
+                    <span className="bg-white/90 backdrop-blur-md text-blue-700 text-xs font-bold px-2.5 py-1 rounded-md shadow-sm border border-gray-100">
+                      {w.alamat || 'G0/0'}
+                    </span>
+                  </div>
                 </div>
+
                 <div className="p-5 flex-1 flex flex-col justify-between">
                   <div>
-                    <div className="flex justify-between items-start mb-1">
-                      <h3 className="font-bold text-gray-900 text-lg uppercase">{getNama(w)}</h3>
-                      <span className="bg-blue-50 text-blue-700 text-xs font-bold px-2.5 py-1 rounded-md border border-blue-100">
-                        {w.alamat || 'G0/0'}
-                      </span>
-                    </div>
-                    <p className="text-gray-600 text-sm">📱 {getTelepon(w)}</p>
+                    <h3 className="font-bold text-gray-900 text-lg uppercase">{getNama(w)}</h3>
+                    <p className="text-gray-600 text-sm mt-1">📱 {getTelepon(w)}</p>
                   </div>
-                  {getTelepon(w) !== '-' && (
-                    <div className="grid grid-cols-2 gap-2 mt-4">
-                      <a
-                        href={`https://wa.me/${getTelepon(w)}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="bg-emerald-50 text-emerald-600 text-center py-2 rounded-lg text-xs font-semibold hover:bg-emerald-100 transition"
+
+                  <div className="space-y-2 mt-4 pt-4 border-t border-gray-100">
+                    {getTelepon(w) !== '-' && (
+                      <div className="grid grid-cols-2 gap-2">
+                        <a
+                          href={`https://wa.me/${getTelepon(w)}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="bg-emerald-50 text-emerald-600 text-center py-1.5 rounded-lg text-xs font-semibold hover:bg-emerald-100 transition"
+                        >
+                          WhatsApp
+                        </a>
+                        <a
+                          href={`tel:${getTelepon(w)}`}
+                          className="bg-blue-50 text-blue-600 text-center py-1.5 rounded-lg text-xs font-semibold hover:bg-blue-100 transition"
+                        >
+                          Telepon
+                        </a>
+                      </div>
+                    )}
+
+                    {/* Tombol Edit & Hapus */}
+                    <div className="grid grid-cols-2 gap-2">
+                      <button
+                        onClick={() => handleOpenEditModal(w)}
+                        className="bg-gray-100 hover:bg-gray-200 text-gray-700 text-center py-1.5 rounded-lg text-xs font-semibold transition"
                       >
-                        WhatsApp
-                      </a>
-                      <a
-                        href={`tel:${getTelepon(w)}`}
-                        className="bg-blue-50 text-blue-600 text-center py-2 rounded-lg text-xs font-semibold hover:bg-blue-100 transition"
+                        ✏️ Edit
+                      </button>
+                      <button
+                        onClick={() => handleHapusWarga(w.id, getNama(w))}
+                        className="bg-rose-50 hover:bg-rose-100 text-rose-600 text-center py-1.5 rounded-lg text-xs font-semibold transition"
                       >
-                        Telepon
-                      </a>
+                        🗑️ Hapus
+                      </button>
                     </div>
-                  )}
+                  </div>
                 </div>
               </div>
             ))}
@@ -282,7 +367,9 @@ export default function Home() {
                     <th className="p-4 w-12 text-center">NO</th>
                     <th className="p-4">ALAMAT / BLOK</th>
                     <th className="p-4">NAMA LENGKAP</th>
+                    <th className="p-4">STATUS</th>
                     <th className="p-4">NO. TELEPON / WA</th>
+                    <th className="p-4 text-center no-print">AKSI</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-200 text-sm">
@@ -292,12 +379,39 @@ export default function Home() {
                         <td className="p-4 text-center font-medium text-gray-500">{idx + 1}</td>
                         <td className="p-4 font-bold text-blue-600 uppercase">{w.alamat || '-'}</td>
                         <td className="p-4 font-bold text-gray-900 uppercase">{getNama(w)}</td>
+                        <td className="p-4">
+                          <span
+                            className={`px-2.5 py-1 rounded-full text-xs font-semibold ${
+                              getStatus(w) === 'Ngontrak'
+                                ? 'bg-amber-100 text-amber-800'
+                                : 'bg-emerald-100 text-emerald-800'
+                            }`}
+                          >
+                            {getStatus(w)}
+                          </span>
+                        </td>
                         <td className="p-4 text-gray-800">{getTelepon(w)}</td>
+                        <td className="p-4 text-center no-print">
+                          <div className="flex justify-center gap-2">
+                            <button
+                              onClick={() => handleOpenEditModal(w)}
+                              className="text-xs font-medium bg-gray-100 hover:bg-gray-200 text-gray-700 px-3 py-1.5 rounded-lg transition"
+                            >
+                              ✏️ Edit
+                            </button>
+                            <button
+                              onClick={() => handleHapusWarga(w.id, getNama(w))}
+                              className="text-xs font-medium bg-rose-50 hover:bg-rose-100 text-rose-600 px-3 py-1.5 rounded-lg transition"
+                            >
+                              🗑️ Hapus
+                            </button>
+                          </div>
+                        </td>
                       </tr>
                     ))
                   ) : (
                     <tr>
-                      <td colSpan={4} className="p-8 text-center text-gray-400">
+                      <td colSpan={6} className="p-8 text-center text-gray-400">
                         {loading ? 'Memuat data...' : 'Data warga tidak ditemukan'}
                       </td>
                     </tr>
@@ -309,13 +423,15 @@ export default function Home() {
         )}
       </div>
 
-      {/* MODAL POP-UP FORM */}
+      {/* MODAL POP-UP FORM (TAMBAH / EDIT) */}
       {isModalOpen && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 no-print">
-          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-xl relative">
-            <h2 className="text-xl font-bold text-gray-800 mb-4">➕ Tambah Warga Baru</h2>
+          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-xl relative max-h-[90vh] overflow-y-auto">
+            <h2 className="text-xl font-bold text-gray-800 mb-4">
+              {editingId ? '✏️ Edit Data Warga' : '➕ Tambah Warga Baru'}
+            </h2>
 
-            <form onSubmit={handleTambahWarga} className="space-y-4">
+            <form onSubmit={handleSaveWarga} className="space-y-4">
               <div>
                 <label className="block text-xs font-semibold text-gray-700 mb-1">Nama Lengkap *</label>
                 <input
@@ -329,7 +445,7 @@ export default function Home() {
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-gray-700 mb-1">Alamat / Blok (Contoh: G1/1, G2/10)</label>
+                <label className="block text-xs font-semibold text-gray-700 mb-1">Alamat / Blok (Contoh: G1/1)</label>
                 <input
                   type="text"
                   placeholder="Contoh: G2/22"
@@ -337,6 +453,18 @@ export default function Home() {
                   onChange={(e) => setAlamatInput(e.target.value)}
                   className="w-full px-3 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 text-sm text-gray-800"
                 />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-gray-700 mb-1">Status Penghuni / Warga</label>
+                <select
+                  value={statusInput}
+                  onChange={(e) => setStatusInput(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 text-sm text-gray-800 bg-white"
+                >
+                  <option value="Tetap">Tetap (Pemilik / Penghuni Asli)</option>
+                  <option value="Ngontrak">Ngontrak / Kos</option>
+                </select>
               </div>
 
               <div>
@@ -351,7 +479,9 @@ export default function Home() {
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-gray-700 mb-1">Foto Rumah / Warga (Opsional)</label>
+                <label className="block text-xs font-semibold text-gray-700 mb-1">
+                  {editingId ? 'Ganti Foto Rumah/Warga (Opsional)' : 'Foto Rumah / Warga (Opsional)'}
+                </label>
                 <input
                   type="file"
                   accept="image/*"
