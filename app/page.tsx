@@ -20,7 +20,7 @@ export default function Home() {
   const [viewMode, setViewMode] = useState<'card' | 'table'>('card');
   const [loading, setLoading] = useState(true);
 
-  // State untuk Modal Tambah Warga
+  // State Modal & Form Input
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [namaInput, setNamaInput] = useState('');
   const [alamatInput, setAlamatInput] = useState('');
@@ -28,7 +28,7 @@ export default function Home() {
   const [fotoFile, setFotoFile] = useState<File | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
-  // Ambil Data Warga
+  // Ambil Data Warga dari Supabase
   const fetchWarga = async () => {
     setLoading(true);
     const { data, error } = await supabase
@@ -46,11 +46,11 @@ export default function Home() {
     fetchWarga();
   }, []);
 
-  // Helper Ambil Nama & No HP Warga
+  // Helper Nama & No Telepon
   const getNama = (w: Warga) => w.nama || w.nama_lengkap || w.nama_warga || 'NAMA KOSONG';
   const getTelepon = (w: Warga) => w.no_hp || w.telepon || '-';
 
-  // Filter Search
+  // Filter Pencarian
   const filteredWarga = wargaList.filter((w) => {
     const nama = getNama(w).toLowerCase();
     const alamat = (w.alamat || '').toLowerCase();
@@ -58,12 +58,12 @@ export default function Home() {
     return nama.includes(query) || alamat.includes(query);
   });
 
-  // Print PDF
+  // Cetak Dokumen / PDF
   const handlePrint = () => {
     window.print();
   };
 
-  // Simpan Warga Baru ke Supabase
+  // Simpan Warga Baru
   const handleTambahWarga = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!namaInput) return alert('Nama lengkap wajib diisi!');
@@ -80,35 +80,34 @@ export default function Home() {
           .from('foto-warga')
           .upload(fileName, fotoFile);
 
-        if (uploadError) {
-          console.error('Error upload foto:', uploadError);
-        } else {
+        if (!uploadError) {
           const { data } = supabase.storage.from('foto-warga').getPublicUrl(fileName);
           publicFotoUrl = data.publicUrl;
         }
       }
 
-      // 2. Coba simpan menggunakan kolom 'no_hp' terlebih dahulu
-      let { error } = await supabase.from('warga').insert([
-        {
-          nama: namaInput,
-          alamat: alamatInput,
-          no_hp: teleponInput,
-          foto_url: publicFotoUrl || null,
-        },
-      ]);
+      // 2. Insert data dasar yang ada di tabel
+      const newWargaData: Record<string, any> = {
+        nama: namaInput,
+        alamat: alamatInput,
+        foto_url: publicFotoUrl || null,
+      };
 
-      // Jika error karena kolom 'no_hp' tidak ada, coba pakai kolom 'telepon'
-      if (error && error.message.includes('column')) {
-        const res = await supabase.from('warga').insert([
-          {
-            nama: namaInput,
-            alamat: alamatInput,
-            telepon: teleponInput,
-            foto_url: publicFotoUrl || null,
-          },
-        ]);
-        error = res.error;
+      const { error } = await supabase.from('warga').insert([newWargaData]);
+
+      // 3. Update telepon jika diisi
+      if (!error && teleponInput) {
+        const { error: errNoHp } = await supabase
+          .from('warga')
+          .update({ no_hp: teleponInput })
+          .eq('nama', namaInput);
+
+        if (errNoHp) {
+          await supabase
+            .from('warga')
+            .update({ telepon: teleponInput })
+            .eq('nama', namaInput);
+        }
       }
 
       if (error) {
@@ -131,7 +130,6 @@ export default function Home() {
 
   return (
     <div className="min-h-screen bg-gray-50 p-4 md:p-8">
-      {/* CSS Cetak / PDF */}
       <style jsx global>{`
         @media print {
           body {
@@ -222,7 +220,7 @@ export default function Home() {
           </div>
         </div>
 
-        {/* Header khusus cetak PDF */}
+        {/* Header Cetak PDF */}
         <div className="print-only text-center mb-6">
           <h1 className="text-xl font-bold uppercase tracking-wide">DAFTAR DATA WARGA RT</h1>
           <p className="text-xs text-gray-600">Dicetak pada: {new Date().toLocaleDateString('id-ID')}</p>
@@ -307,7 +305,7 @@ export default function Home() {
         )}
       </div>
 
-      {/* POP-UP / MODAL FORM TAMBAH WARGA */}
+      {/* MODAL POP-UP FORM */}
       {isModalOpen && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 no-print">
           <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-xl relative">
@@ -338,7 +336,7 @@ export default function Home() {
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-gray-700 mb-1">No. Telepon / WA</label>
+                <label className="block text-xs font-semibold text-gray-700 mb-1">No. Telepon / WA (Opsional)</label>
                 <input
                   type="text"
                   placeholder="Contoh: 12345678910"
