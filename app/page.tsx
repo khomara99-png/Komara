@@ -24,7 +24,7 @@ export default function Home() {
   // State Modal Form (Tambah & Edit)
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
-  
+
   const [namaInput, setNamaInput] = useState('');
   const [alamatInput, setAlamatInput] = useState('');
   const [teleponInput, setTeleponInput] = useState('');
@@ -36,9 +36,7 @@ export default function Home() {
   // Ambil Data Warga dari Supabase
   const fetchWarga = async () => {
     setLoading(true);
-    const { data, error } = await supabase
-      .from('warga')
-      .select('*');
+    const { data, error } = await supabase.from('warga').select('*');
 
     if (!error && data) {
       setWargaList(data);
@@ -54,6 +52,19 @@ export default function Home() {
   const getNama = (w: Warga) => w.nama_lengkap || w.nama || 'NAMA KOSONG';
   const getTelepon = (w: Warga) => w.no_telepon || w.telepon || w.no_hp || '-';
   const getStatus = (w: Warga) => w.status_warga || 'Tetap';
+
+  // FUNGSI FORMATTER NOMOR WHATSAPP (Ubah 0812... atau +62812... menjadi 62812...)
+  const formatWaNumber = (phoneStr: string) => {
+    if (!phoneStr || phoneStr === '-') return '';
+    // Hapus semua karakter non-angka (spasi, +, -, dll)
+    let cleaned = phoneStr.replace(/\D/g, '');
+    
+    // Jika diawali '0', ubah menjadi '62'
+    if (cleaned.startsWith('0')) {
+      cleaned = '62' + cleaned.slice(1);
+    }
+    return cleaned;
+  };
 
   // FUNGSI PENGURUTAN ALAMAT / BLOK (G1/1 -> G1/20 -> G2/1, dst)
   const sortAlamatNatural = (a: Warga, b: Warga) => {
@@ -129,7 +140,6 @@ export default function Home() {
     let publicFotoUrl = existingFotoUrl;
 
     try {
-      // 1. Upload foto baru jika ada file yang dipilih
       if (fotoFile) {
         const fileExt = fotoFile.name.split('.').pop();
         const fileName = `${Date.now()}.${fileExt}`;
@@ -152,7 +162,6 @@ export default function Home() {
       };
 
       if (editingId) {
-        // Mode UPDATE (EDIT)
         const { error } = await supabase
           .from('warga')
           .update(payload)
@@ -161,7 +170,6 @@ export default function Home() {
         if (error) alert('Gagal mengupdate data: ' + error.message);
         else alert('Data warga berhasil diperbarui!');
       } else {
-        // Mode INSERT (TAMBAH BARU)
         const { error } = await supabase.from('warga').insert([payload]);
 
         if (error) alert('Gagal menambah warga: ' + error.message);
@@ -279,81 +287,86 @@ export default function Home() {
         {/* MODE 1: KARTU FOTO */}
         {viewMode === 'card' && (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 no-print">
-            {filteredWarga.map((w) => (
-              <div key={w.id} className="bg-white rounded-2xl overflow-hidden shadow-sm border border-gray-100 flex flex-col relative group">
-                <div className="h-48 bg-gray-100 relative">
-                  {w.foto_url ? (
-                    <img src={w.foto_url} alt={getNama(w)} className="w-full h-full object-cover" />
-                  ) : (
-                    <div className="w-full h-full flex items-center justify-center text-gray-400">Tidak ada foto</div>
-                  )}
+            {filteredWarga.map((w) => {
+              const rawPhone = getTelepon(w);
+              const waFormatted = formatWaNumber(rawPhone);
 
-                  {/* Badge Status Warga */}
-                  <div className="absolute top-3 left-3">
-                    <span
-                      className={`text-xs font-bold px-2.5 py-1 rounded-full shadow-sm ${
-                        getStatus(w) === 'Ngontrak'
-                          ? 'bg-amber-500 text-white'
-                          : 'bg-emerald-600 text-white'
-                      }`}
-                    >
-                      {getStatus(w)}
-                    </span>
-                  </div>
-
-                  {/* Badge Blok Alamat */}
-                  <div className="absolute top-3 right-3">
-                    <span className="bg-white/90 backdrop-blur-md text-blue-700 text-xs font-bold px-2.5 py-1 rounded-md shadow-sm border border-gray-100">
-                      {w.alamat || 'G0/0'}
-                    </span>
-                  </div>
-                </div>
-
-                <div className="p-5 flex-1 flex flex-col justify-between">
-                  <div>
-                    <h3 className="font-bold text-gray-900 text-lg uppercase">{getNama(w)}</h3>
-                    <p className="text-gray-600 text-sm mt-1">📱 {getTelepon(w)}</p>
-                  </div>
-
-                  <div className="space-y-2 mt-4 pt-4 border-t border-gray-100">
-                    {getTelepon(w) !== '-' && (
-                      <div className="grid grid-cols-2 gap-2">
-                        <a
-                          href={`https://wa.me/${getTelepon(w)}`}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="bg-emerald-50 text-emerald-600 text-center py-1.5 rounded-lg text-xs font-semibold hover:bg-emerald-100 transition"
-                        >
-                          WhatsApp
-                        </a>
-                        <a
-                          href={`tel:${getTelepon(w)}`}
-                          className="bg-blue-50 text-blue-600 text-center py-1.5 rounded-lg text-xs font-semibold hover:bg-blue-100 transition"
-                        >
-                          Telepon
-                        </a>
-                      </div>
+              return (
+                <div key={w.id} className="bg-white rounded-2xl overflow-hidden shadow-sm border border-gray-100 flex flex-col relative group">
+                  <div className="h-48 bg-gray-100 relative">
+                    {w.foto_url ? (
+                      <img src={w.foto_url} alt={getNama(w)} className="w-full h-full object-cover" />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center text-gray-400">Tidak ada foto</div>
                     )}
 
-                    {/* Tombol Edit & Hapus */}
-                    <div className="grid grid-cols-2 gap-2">
-                      <button
-                        onClick={() => handleOpenEditModal(w)}
-                        className="bg-gray-100 hover:bg-gray-200 text-gray-700 text-center py-1.5 rounded-lg text-xs font-semibold transition"
+                    {/* Badge Status Warga */}
+                    <div className="absolute top-3 left-3">
+                      <span
+                        className={`text-xs font-bold px-2.5 py-1 rounded-full shadow-sm ${
+                          getStatus(w) === 'Ngontrak'
+                            ? 'bg-amber-500 text-white'
+                            : 'bg-emerald-600 text-white'
+                        }`}
                       >
-                        ✏️ Edit
-                      </button>
-                      <button
-                        onClick={() => handleHapusWarga(w.id, getNama(w))}
-                        className="bg-rose-50 hover:bg-rose-100 text-rose-600 text-center py-1.5 rounded-lg text-xs font-semibold transition"
-                      >
-                        🗑️ Hapus
-                      </button>
+                        {getStatus(w)}
+                      </span>
+                    </div>
+
+                    {/* Badge Blok Alamat */}
+                    <div className="absolute top-3 right-3">
+                      <span className="bg-white/90 backdrop-blur-md text-blue-700 text-xs font-bold px-2.5 py-1 rounded-md shadow-sm border border-gray-100">
+                        {w.alamat || 'G0/0'}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="p-5 flex-1 flex flex-col justify-between">
+                    <div>
+                      <h3 className="font-bold text-gray-900 text-lg uppercase">{getNama(w)}</h3>
+                      <p className="text-gray-600 text-sm mt-1">📱 {rawPhone}</p>
+                    </div>
+
+                    <div className="space-y-2 mt-4 pt-4 border-t border-gray-100">
+                      {rawPhone !== '-' && (
+                        <div className="grid grid-cols-2 gap-2">
+                          <a
+                            href={`https://wa.me/${waFormatted}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="bg-emerald-50 hover:bg-emerald-100 text-emerald-600 text-center py-1.5 rounded-lg text-xs font-semibold transition flex items-center justify-center gap-1"
+                          >
+                            💬 WhatsApp
+                          </a>
+                          <a
+                            href={`tel:${rawPhone}`}
+                            className="bg-blue-50 hover:bg-blue-100 text-blue-600 text-center py-1.5 rounded-lg text-xs font-semibold transition flex items-center justify-center gap-1"
+                          >
+                            📞 Telepon
+                          </a>
+                        </div>
+                      )}
+
+                      {/* Tombol Edit & Hapus */}
+                      <div className="grid grid-cols-2 gap-2">
+                        <button
+                          onClick={() => handleOpenEditModal(w)}
+                          className="bg-gray-100 hover:bg-gray-200 text-gray-700 text-center py-1.5 rounded-lg text-xs font-semibold transition"
+                        >
+                          ✏️ Edit
+                        </button>
+                        <button
+                          onClick={() => handleHapusWarga(w.id, getNama(w))}
+                          className="bg-rose-50 hover:bg-rose-100 text-rose-600 text-center py-1.5 rounded-lg text-xs font-semibold transition"
+                        >
+                          🗑️ Hapus
+                        </button>
+                      </div>
                     </div>
                   </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
 
@@ -374,41 +387,59 @@ export default function Home() {
                 </thead>
                 <tbody className="divide-y divide-gray-200 text-sm">
                   {filteredWarga.length > 0 ? (
-                    filteredWarga.map((w, idx) => (
-                      <tr key={w.id} className="hover:bg-gray-50 transition">
-                        <td className="p-4 text-center font-medium text-gray-500">{idx + 1}</td>
-                        <td className="p-4 font-bold text-blue-600 uppercase">{w.alamat || '-'}</td>
-                        <td className="p-4 font-bold text-gray-900 uppercase">{getNama(w)}</td>
-                        <td className="p-4">
-                          <span
-                            className={`px-2.5 py-1 rounded-full text-xs font-semibold ${
-                              getStatus(w) === 'Ngontrak'
-                                ? 'bg-amber-100 text-amber-800'
-                                : 'bg-emerald-100 text-emerald-800'
-                            }`}
-                          >
-                            {getStatus(w)}
-                          </span>
-                        </td>
-                        <td className="p-4 text-gray-800">{getTelepon(w)}</td>
-                        <td className="p-4 text-center no-print">
-                          <div className="flex justify-center gap-2">
-                            <button
-                              onClick={() => handleOpenEditModal(w)}
-                              className="text-xs font-medium bg-gray-100 hover:bg-gray-200 text-gray-700 px-3 py-1.5 rounded-lg transition"
+                    filteredWarga.map((w, idx) => {
+                      const rawPhone = getTelepon(w);
+                      const waFormatted = formatWaNumber(rawPhone);
+
+                      return (
+                        <tr key={w.id} className="hover:bg-gray-50 transition">
+                          <td className="p-4 text-center font-medium text-gray-500">{idx + 1}</td>
+                          <td className="p-4 font-bold text-blue-600 uppercase">{w.alamat || '-'}</td>
+                          <td className="p-4 font-bold text-gray-900 uppercase">{getNama(w)}</td>
+                          <td className="p-4">
+                            <span
+                              className={`px-2.5 py-1 rounded-full text-xs font-semibold ${
+                                getStatus(w) === 'Ngontrak'
+                                  ? 'bg-amber-100 text-amber-800'
+                                  : 'bg-emerald-100 text-emerald-800'
+                              }`}
                             >
-                              ✏️ Edit
-                            </button>
-                            <button
-                              onClick={() => handleHapusWarga(w.id, getNama(w))}
-                              className="text-xs font-medium bg-rose-50 hover:bg-rose-100 text-rose-600 px-3 py-1.5 rounded-lg transition"
-                            >
-                              🗑️ Hapus
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    ))
+                              {getStatus(w)}
+                            </span>
+                          </td>
+                          <td className="p-4 text-gray-800">
+                            {rawPhone !== '-' ? (
+                              <a
+                                href={`https://wa.me/${waFormatted}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-emerald-600 hover:text-emerald-700 font-semibold hover:underline flex items-center gap-1"
+                              >
+                                💬 {rawPhone}
+                              </a>
+                            ) : (
+                              '-'
+                            )}
+                          </td>
+                          <td className="p-4 text-center no-print">
+                            <div className="flex justify-center gap-2">
+                              <button
+                                onClick={() => handleOpenEditModal(w)}
+                                className="text-xs font-medium bg-gray-100 hover:bg-gray-200 text-gray-700 px-3 py-1.5 rounded-lg transition"
+                              >
+                                ✏️ Edit
+                              </button>
+                              <button
+                                onClick={() => handleHapusWarga(w.id, getNama(w))}
+                                className="text-xs font-medium bg-rose-50 hover:bg-rose-100 text-rose-600 px-3 py-1.5 rounded-lg transition"
+                              >
+                                🗑️ Hapus
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })
                   ) : (
                     <tr>
                       <td colSpan={6} className="p-8 text-center text-gray-400">
@@ -423,7 +454,7 @@ export default function Home() {
         )}
       </div>
 
-      {/* MODAL POP-UP FORM (TAMBAH / EDIT) */}
+      {/* MODAL POP-UP FORM */}
       {isModalOpen && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 no-print">
           <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-xl relative max-h-[90vh] overflow-y-auto">
