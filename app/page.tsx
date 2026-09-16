@@ -6,6 +6,7 @@ import { supabase } from '@/lib/supabase';
 interface Warga {
   id: string;
   nama_lengkap?: string;
+  nama_warga?: string;
   nama?: string;
   alamat?: string;
   no_telepon?: string;
@@ -23,8 +24,8 @@ export default function Home() {
   const [viewMode, setViewMode] = useState<'card' | 'table'>('card');
   const [loading, setLoading] = useState(true);
 
-  // Mode Pengurus / Admin (Simple Lock Toggle)
-  const [isAdmin, setIsAdmin] = useState(false);
+  // State Pengurus Mode
+  const [isAdmin, setIsAdmin] = useState(true);
 
   // State Modal Form (Tambah & Edit)
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -54,8 +55,11 @@ export default function Home() {
     fetchWarga();
   }, []);
 
-  // Helper Data
-  const getNama = (w: Warga) => w.nama_lengkap || w.nama || 'NAMA KOSONG';
+  // Helper Cerdas Pembaca Nama Lengkap
+  const getNama = (w: Warga) => {
+    return w.nama_lengkap || w.nama_warga || w.nama || 'TANPA NAMA';
+  };
+
   const getTelepon = (w: Warga) => w.no_telepon || w.telepon || w.no_hp || '-';
   const getStatus = (w: Warga) => w.status_warga || 'Tetap';
   const getJiwa = (w: Warga) => w.jumlah_jiwa || 1;
@@ -293,7 +297,7 @@ export default function Home() {
                 className="w-full sm:w-auto bg-white text-blue-700 hover:bg-blue-50 px-5 py-3 rounded-2xl font-bold shadow-lg shadow-black/10 transition active:scale-95 flex items-center justify-center gap-2"
               >
                 <span className="text-xl">+</span>
-                <span>Tambah Warga</span>
+                <span>Tambah Warga Baru</span>
               </button>
             )}
           </div>
@@ -510,7 +514,7 @@ export default function Home() {
                         </div>
                       )}
 
-                      {/* Tombol Aksi (Khusus Pengurus Mode) */}
+                      {/* Tombol Edit & Hapus */}
                       {isAdmin && (
                         <div className="grid grid-cols-2 gap-2">
                           <button
@@ -623,7 +627,7 @@ export default function Home() {
         )}
       </div>
 
-      {/* MODAL POP-UP FORM (TAMBAH / EDIT) */}
+      {/* MODAL POP-UP FORM */}
       {isModalOpen && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 no-print">
           <div className="bg-white rounded-3xl max-w-md w-full p-6 sm:p-8 shadow-2xl relative max-h-[90vh] overflow-y-auto border border-slate-100">
