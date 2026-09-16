@@ -46,9 +46,9 @@ export default function Home() {
     fetchWarga();
   }, []);
 
-  // Helper Ambil Nama Warga (fleksibel nama kolom di DB)
+  // Helper Ambil Nama & No HP Warga
   const getNama = (w: Warga) => w.nama || w.nama_lengkap || w.nama_warga || 'NAMA KOSONG';
-  const getTelepon = (w: Warga) => w.telepon || w.no_hp || '-';
+  const getTelepon = (w: Warga) => w.no_hp || w.telepon || '-';
 
   // Filter Search
   const filteredWarga = wargaList.filter((w) => {
@@ -80,33 +80,47 @@ export default function Home() {
           .from('foto-warga')
           .upload(fileName, fotoFile);
 
-        if (!uploadError) {
+        if (uploadError) {
+          console.error('Error upload foto:', uploadError);
+        } else {
           const { data } = supabase.storage.from('foto-warga').getPublicUrl(fileName);
           publicFotoUrl = data.publicUrl;
         }
       }
 
-      // 2. Insert ke tabel 'warga'
-      const { error } = await supabase.from('warga').insert([
+      // 2. Coba simpan menggunakan kolom 'no_hp' terlebih dahulu
+      let { error } = await supabase.from('warga').insert([
         {
           nama: namaInput,
           alamat: alamatInput,
-          telepon: teleponInput,
+          no_hp: teleponInput,
           foto_url: publicFotoUrl || null,
         },
       ]);
+
+      // Jika error karena kolom 'no_hp' tidak ada, coba pakai kolom 'telepon'
+      if (error && error.message.includes('column')) {
+        const res = await supabase.from('warga').insert([
+          {
+            nama: namaInput,
+            alamat: alamatInput,
+            telepon: teleponInput,
+            foto_url: publicFotoUrl || null,
+          },
+        ]);
+        error = res.error;
+      }
 
       if (error) {
         alert('Gagal menambah warga: ' + error.message);
       } else {
         alert('Berhasil menambah warga baru!');
-        // Reset Form & Tutup Modal
         setNamaInput('');
         setAlamatInput('');
         setTeleponInput('');
         setFotoFile(null);
         setIsModalOpen(false);
-        fetchWarga(); // Refresh data
+        fetchWarga();
       }
     } catch (err: any) {
       alert('Terjadi kesalahan: ' + err.message);
@@ -305,7 +319,7 @@ export default function Home() {
                 <input
                   type="text"
                   required
-                  placeholder="Contoh: AULIA GUNAWAN"
+                  placeholder="Contoh: MASLUKHUL MASWAN"
                   value={namaInput}
                   onChange={(e) => setNamaInput(e.target.value)}
                   className="w-full px-3 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 text-sm text-gray-800"
@@ -316,7 +330,7 @@ export default function Home() {
                 <label className="block text-xs font-semibold text-gray-700 mb-1">Alamat / Blok</label>
                 <input
                   type="text"
-                  placeholder="Contoh: G2/20"
+                  placeholder="Contoh: G2/22"
                   value={alamatInput}
                   onChange={(e) => setAlamatInput(e.target.value)}
                   className="w-full px-3 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 text-sm text-gray-800"
@@ -327,7 +341,7 @@ export default function Home() {
                 <label className="block text-xs font-semibold text-gray-700 mb-1">No. Telepon / WA</label>
                 <input
                   type="text"
-                  placeholder="Contoh: 08123456789"
+                  placeholder="Contoh: 12345678910"
                   value={teleponInput}
                   onChange={(e) => setTeleponInput(e.target.value)}
                   className="w-full px-3 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 text-sm text-gray-800"
