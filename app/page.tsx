@@ -47,7 +47,7 @@ export default function Home() {
   }, []);
 
   // Helper Nama & No Telepon
-  const getNama = (w: Warga) => w.nama || w.nama_lengkap || w.nama_warga || 'NAMA KOSONG';
+  const getNama = (w: Warga) => w.nama_lengkap || w.nama || w.nama_warga || 'NAMA KOSONG';
   const getTelepon = (w: Warga) => w.no_hp || w.telepon || '-';
 
   // Filter Pencarian
@@ -86,29 +86,19 @@ export default function Home() {
         }
       }
 
-      // 2. Insert data dasar yang ada di tabel
+      // 2. Siapkan payload sesuai kolom tabel Supabase Anda (nama_lengkap)
       const newWargaData: Record<string, any> = {
-        nama: namaInput,
+        nama_lengkap: namaInput,
         alamat: alamatInput,
         foto_url: publicFotoUrl || null,
       };
 
-      const { error } = await supabase.from('warga').insert([newWargaData]);
-
-      // 3. Update telepon jika diisi
-      if (!error && teleponInput) {
-        const { error: errNoHp } = await supabase
-          .from('warga')
-          .update({ no_hp: teleponInput })
-          .eq('nama', namaInput);
-
-        if (errNoHp) {
-          await supabase
-            .from('warga')
-            .update({ telepon: teleponInput })
-            .eq('nama', namaInput);
-        }
+      // Tambahkan nomor telepon/HP jika diisi
+      if (teleponInput) {
+        newWargaData.no_hp = teleponInput;
       }
+
+      const { error } = await supabase.from('warga').insert([newWargaData]);
 
       if (error) {
         alert('Gagal menambah warga: ' + error.message);
