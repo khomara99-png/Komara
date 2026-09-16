@@ -8,8 +8,10 @@ interface Warga {
   nama_lengkap?: string;
   nama?: string;
   alamat?: string;
-  foto_url?: string;
   no_telepon?: string;
+  telepon?: string;
+  no_hp?: string;
+  foto_url?: string;
 }
 
 export default function Home() {
@@ -44,8 +46,9 @@ export default function Home() {
     fetchWarga();
   }, []);
 
-  // Helper Nama & Alamat
+  // Helper Nama & Nomor Telepon
   const getNama = (w: Warga) => w.nama_lengkap || w.nama || 'NAMA KOSONG';
+  const getTelepon = (w: Warga) => w.no_telepon || w.telepon || w.no_hp || '-';
 
   // Filter Pencarian
   const filteredWarga = wargaList.filter((w) => {
@@ -60,7 +63,7 @@ export default function Home() {
     window.print();
   };
 
-  // Simpan Warga Baru (Hanya mengirim kolom yang terbukti ada di Supabase)
+  // Simpan Warga Baru
   const handleTambahWarga = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!namaInput) return alert('Nama lengkap wajib diisi!');
@@ -83,12 +86,16 @@ export default function Home() {
         }
       }
 
-      // 2. Simpan ke database Supabase (menggunakan nama_lengkap, alamat, foto_url)
-      const payload = {
+      // 2. Simpan ke database Supabase
+      const payload: Record<string, any> = {
         nama_lengkap: namaInput,
         alamat: alamatInput,
         foto_url: publicFotoUrl || null,
       };
+
+      if (teleponInput) {
+        payload.no_telepon = teleponInput;
+      }
 
       const { error } = await supabase.from('warga').insert([payload]);
 
@@ -225,7 +232,26 @@ export default function Home() {
                   <div>
                     <h3 className="font-bold text-gray-900 text-lg uppercase">{getNama(w)}</h3>
                     <p className="text-gray-600 text-sm mt-1">🏠 {w.alamat || '-'}</p>
+                    <p className="text-gray-600 text-sm">📱 {getTelepon(w)}</p>
                   </div>
+                  {getTelepon(w) !== '-' && (
+                    <div className="grid grid-cols-2 gap-2 mt-4">
+                      <a
+                        href={`https://wa.me/${getTelepon(w)}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="bg-emerald-50 text-emerald-600 text-center py-2 rounded-lg text-xs font-semibold hover:bg-emerald-100 transition"
+                      >
+                        WhatsApp
+                      </a>
+                      <a
+                        href={`tel:${getTelepon(w)}`}
+                        className="bg-blue-50 text-blue-600 text-center py-2 rounded-lg text-xs font-semibold hover:bg-blue-100 transition"
+                      >
+                        Telepon
+                      </a>
+                    </div>
+                  )}
                 </div>
               </div>
             ))}
@@ -242,6 +268,7 @@ export default function Home() {
                     <th className="p-4 w-12 text-center">NO</th>
                     <th className="p-4">NAMA LENGKAP</th>
                     <th className="p-4">ALAMAT / BLOK</th>
+                    <th className="p-4">NO. TELEPON / WA</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-200 text-sm">
@@ -251,11 +278,12 @@ export default function Home() {
                         <td className="p-4 text-center font-medium text-gray-500">{idx + 1}</td>
                         <td className="p-4 font-bold text-gray-900 uppercase">{getNama(w)}</td>
                         <td className="p-4 text-gray-800">{w.alamat || '-'}</td>
+                        <td className="p-4 text-gray-800">{getTelepon(w)}</td>
                       </tr>
                     ))
                   ) : (
                     <tr>
-                      <td colSpan={3} className="p-8 text-center text-gray-400">
+                      <td colSpan={4} className="p-8 text-center text-gray-400">
                         {loading ? 'Memuat data...' : 'Data warga tidak ditemukan'}
                       </td>
                     </tr>
@@ -293,6 +321,17 @@ export default function Home() {
                   placeholder="Contoh: G2/22"
                   value={alamatInput}
                   onChange={(e) => setAlamatInput(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 text-sm text-gray-800"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-gray-700 mb-1">No. Telepon / WA (Opsional)</label>
+                <input
+                  type="text"
+                  placeholder="Contoh: 081234567890"
+                  value={teleponInput}
+                  onChange={(e) => setTeleponInput(e.target.value)}
                   className="w-full px-3 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 text-sm text-gray-800"
                 />
               </div>
