@@ -24,8 +24,13 @@ export default function Home() {
   const [viewMode, setViewMode] = useState<'card' | 'table'>('card');
   const [loading, setLoading] = useState(true);
 
-  // State Pengurus Mode
-  const [isAdmin, setIsAdmin] = useState(true);
+  // State Keamanan Mode Pengurus (Default FALSE agar Warga Biasa tidak bisa edit/hapus)
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [isPinModalOpen, setIsPinModalOpen] = useState(false);
+  const [pinInput, setPinInput] = useState('');
+
+  // PASSWORD PENGURUS (Bisa Anda ganti di bawah ini, contoh: 'rt1234')
+  const PASSWORD_PENGURUS = 'rt1234';
 
   // State Modal Form (Tambah & Edit)
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -105,6 +110,30 @@ export default function Home() {
   const totalTetap = wargaList.filter((w) => getStatus(w) === 'Tetap').length;
   const totalNgontrak = wargaList.filter((w) => getStatus(w) === 'Ngontrak').length;
   const totalJiwa = wargaList.reduce((acc, curr) => acc + getJiwa(curr), 0);
+
+  // Toggle Mode Pengurus dengan Password
+  const handleToggleAdmin = () => {
+    if (isAdmin) {
+      // Jika sedang aktif, klik untuk Logout Mode Pengurus
+      setIsAdmin(false);
+      alert('Anda telah keluar dari Mode Pengurus.');
+    } else {
+      // Jika ingin aktifkan, minta PIN/Password
+      setPinInput('');
+      setIsPinModalOpen(true);
+    }
+  };
+
+  const handleVerifyPin = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (pinInput === PASSWORD_PENGURUS) {
+      setIsAdmin(true);
+      setIsPinModalOpen(false);
+      alert('Berhasil masuk Mode Pengurus! Akses Tambah, Edit, & Hapus diaktifkan.');
+    } else {
+      alert('Password Pengurus Salah! Akses ditolak.');
+    }
+  };
 
   // Export Data ke CSV / Excel
   const handleExportExcel = () => {
@@ -279,9 +308,9 @@ export default function Home() {
           </div>
 
           <div className="flex flex-col sm:flex-row items-center gap-3 w-full md:w-auto">
-            {/* Toggle Pengurus Mode */}
+            {/* Toggle Pengurus Mode dengan Password */}
             <button
-              onClick={() => setIsAdmin(!isAdmin)}
+              onClick={handleToggleAdmin}
               className={`w-full sm:w-auto px-4 py-3 rounded-2xl font-bold text-xs transition border flex items-center justify-center gap-2 ${
                 isAdmin
                   ? 'bg-amber-400 text-slate-900 border-amber-300 shadow-md'
@@ -514,7 +543,7 @@ export default function Home() {
                         </div>
                       )}
 
-                      {/* Tombol Edit & Hapus */}
+                      {/* Tombol Edit & Hapus (Hanya Muncul Jika Password Pengurus Benar) */}
                       {isAdmin && (
                         <div className="grid grid-cols-2 gap-2">
                           <button
@@ -627,7 +656,44 @@ export default function Home() {
         )}
       </div>
 
-      {/* MODAL POP-UP FORM */}
+      {/* MODAL POP-UP VERIFIKASI PASSWORD PENGURUS */}
+      {isPinModalOpen && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 no-print">
+          <div className="bg-white rounded-3xl max-w-sm w-full p-6 shadow-2xl relative border border-slate-100">
+            <h2 className="text-lg font-extrabold text-slate-900 mb-1">🔑 Masukkan Password Pengurus</h2>
+            <p className="text-xs text-slate-500 mb-4">Verifikasi ini diperlukan untuk mengubah data warga.</p>
+
+            <form onSubmit={handleVerifyPin} className="space-y-4">
+              <input
+                type="password"
+                required
+                placeholder="Masukkan password pengurus..."
+                value={pinInput}
+                onChange={(e) => setPinInput(e.target.value)}
+                className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:bg-white text-sm text-slate-800 transition"
+              />
+
+              <div className="flex justify-end gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setIsPinModalOpen(false)}
+                  className="px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-xl text-xs font-bold transition"
+                >
+                  Batal
+                </button>
+                <button
+                  type="submit"
+                  className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition shadow-md"
+                >
+                  Masuk
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL POP-UP FORM (TAMBAH / EDIT) */}
       {isModalOpen && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 no-print">
           <div className="bg-white rounded-3xl max-w-md w-full p-6 sm:p-8 shadow-2xl relative max-h-[90vh] overflow-y-auto border border-slate-100">
