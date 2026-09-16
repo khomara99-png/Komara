@@ -33,8 +33,7 @@ export default function Home() {
     setLoading(true);
     const { data, error } = await supabase
       .from('warga')
-      .select('*')
-      .order('created_at', { ascending: false });
+      .select('*');
 
     if (!error && data) {
       setWargaList(data);
@@ -50,13 +49,26 @@ export default function Home() {
   const getNama = (w: Warga) => w.nama_lengkap || w.nama || 'NAMA KOSONG';
   const getTelepon = (w: Warga) => w.no_telepon || w.telepon || w.no_hp || '-';
 
-  // Filter Pencarian
-  const filteredWarga = wargaList.filter((w) => {
-    const nama = getNama(w).toLowerCase();
-    const alamat = (w.alamat || '').toLowerCase();
-    const query = search.toLowerCase();
-    return nama.includes(query) || alamat.includes(query);
-  });
+  // FUNGSI PENGURUTAN ALAMAT / BLOK (Natural Sort: G1/1 -> G1/20 -> G2/1, dst)
+  const sortAlamatNatural = (a: Warga, b: Warga) => {
+    const alamatA = (a.alamat || '').trim().toUpperCase();
+    const alamatB = (b.alamat || '').trim().toUpperCase();
+
+    return alamatA.localeCompare(alamatB, undefined, {
+      numeric: true,
+      sensitivity: 'base',
+    });
+  };
+
+  // Filter Pencarian + Diurutkan berdasarkan Blok / Alamat Terkecil -> Terbesar
+  const filteredWarga = wargaList
+    .filter((w) => {
+      const nama = getNama(w).toLowerCase();
+      const alamat = (w.alamat || '').toLowerCase();
+      const query = search.toLowerCase();
+      return nama.includes(query) || alamat.includes(query);
+    })
+    .sort(sortAlamatNatural);
 
   // Cetak Dokumen / PDF
   const handlePrint = () => {
@@ -72,7 +84,6 @@ export default function Home() {
     let publicFotoUrl = '';
 
     try {
-      // 1. Upload foto jika ada
       if (fotoFile) {
         const fileExt = fotoFile.name.split('.').pop();
         const fileName = `${Date.now()}.${fileExt}`;
@@ -86,7 +97,6 @@ export default function Home() {
         }
       }
 
-      // 2. Simpan ke database Supabase
       const payload: Record<string, any> = {
         nama_lengkap: namaInput,
         alamat: alamatInput,
@@ -108,7 +118,7 @@ export default function Home() {
         setTeleponInput('');
         setFotoFile(null);
         setIsModalOpen(false);
-        fetchWarga(); // Refresh data
+        fetchWarga();
       }
     } catch (err: any) {
       alert('Terjadi kesalahan: ' + err.message);
@@ -230,8 +240,12 @@ export default function Home() {
                 </div>
                 <div className="p-5 flex-1 flex flex-col justify-between">
                   <div>
-                    <h3 className="font-bold text-gray-900 text-lg uppercase">{getNama(w)}</h3>
-                    <p className="text-gray-600 text-sm mt-1">🏠 {w.alamat || '-'}</p>
+                    <div className="flex justify-between items-start mb-1">
+                      <h3 className="font-bold text-gray-900 text-lg uppercase">{getNama(w)}</h3>
+                      <span className="bg-blue-50 text-blue-700 text-xs font-bold px-2.5 py-1 rounded-md border border-blue-100">
+                        {w.alamat || 'G0/0'}
+                      </span>
+                    </div>
                     <p className="text-gray-600 text-sm">📱 {getTelepon(w)}</p>
                   </div>
                   {getTelepon(w) !== '-' && (
@@ -266,8 +280,8 @@ export default function Home() {
                 <thead>
                   <tr className="bg-gray-50 border-b border-gray-200 text-xs font-bold text-gray-700 uppercase tracking-wider">
                     <th className="p-4 w-12 text-center">NO</th>
-                    <th className="p-4">NAMA LENGKAP</th>
                     <th className="p-4">ALAMAT / BLOK</th>
+                    <th className="p-4">NAMA LENGKAP</th>
                     <th className="p-4">NO. TELEPON / WA</th>
                   </tr>
                 </thead>
@@ -276,8 +290,8 @@ export default function Home() {
                     filteredWarga.map((w, idx) => (
                       <tr key={w.id} className="hover:bg-gray-50 transition">
                         <td className="p-4 text-center font-medium text-gray-500">{idx + 1}</td>
+                        <td className="p-4 font-bold text-blue-600 uppercase">{w.alamat || '-'}</td>
                         <td className="p-4 font-bold text-gray-900 uppercase">{getNama(w)}</td>
-                        <td className="p-4 text-gray-800">{w.alamat || '-'}</td>
                         <td className="p-4 text-gray-800">{getTelepon(w)}</td>
                       </tr>
                     ))
@@ -315,7 +329,7 @@ export default function Home() {
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-gray-700 mb-1">Alamat / Blok</label>
+                <label className="block text-xs font-semibold text-gray-700 mb-1">Alamat / Blok (Contoh: G1/1, G2/10)</label>
                 <input
                   type="text"
                   placeholder="Contoh: G2/22"
